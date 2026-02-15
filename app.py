@@ -336,6 +336,7 @@ def bornhuetter_ferguson(tri_cum: pd.DataFrame, cdf: pd.Series, ult_apriori: pd.
     alpha = []
     psap = []
     ultime = []
+    for i in range(len(tri_cum)):
         row = tri_cum.loc[i, dev_cols]
         last_col = row.last_valid_index()
         if last_col is None:
