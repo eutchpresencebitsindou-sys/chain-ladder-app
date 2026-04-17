@@ -223,11 +223,12 @@ def cdf_from_factors(factors_without_tail: List[float], tail_factor: float = 1.0
     return cdf
 
 
+
 def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail):
     tri = cum_triangle.copy().astype(float)
     nrows, ncols = tri.shape
 
-    # sécurisation des facteurs
+    # sécurisation facteurs
     factors = list(factors_without_tail)
     if len(factors) < ncols - 1:
         factors += [1.0] * (ncols - 1 - len(factors))
@@ -246,11 +247,12 @@ def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_t
         for j in range(last + 1, ncols):
             prev = row[j - 1]
 
-            if not np.isnan(prev):
-                try:
-                    row[j] = prev * factors[j - 1]
-                except:
-                    row[j] = prev  # fallback sécurisé
+            if np.isnan(prev):
+                continue
+
+            # protection absolue
+            idx = min(j - 1, len(factors) - 1)
+            row[j] = prev * factors[idx]
 
         tri.iloc[i] = row
 
@@ -259,6 +261,7 @@ def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_t
     reserve = ultimate - latest
 
     return tri, latest, ultimate, reserve
+
 
 
 def dev_cdf_by_row(cum_triangle: pd.DataFrame, factors_without_tail: List[float], tail_factor: float = 1.0) -> pd.Series:
