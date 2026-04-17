@@ -221,16 +221,18 @@ def cdf_from_factors(factors_without_tail: List[float], tail_factor: float = 1.0
         prod *= all_f[k]
         cdf[k] = prod
     return cdf
-def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail):
 
+
+def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail):
     tri = cum_triangle.copy().astype(float)
     nrows, ncols = tri.shape
 
-    # 🔒 Sécurité : adapter la taille des facteurs
-    if len(factors_without_tail) < ncols - 1:
-        factors_without_tail = list(factors_without_tail) + [1.0] * (ncols - 1 - len(factors_without_tail))
+    # sécurisation des facteurs
+    factors = list(factors_without_tail)
+    if len(factors) < ncols - 1:
+        factors += [1.0] * (ncols - 1 - len(factors))
     else:
-        factors_without_tail = list(factors_without_tail[:ncols - 1])
+        factors = factors[:ncols - 1]
 
     for i in range(nrows):
         row = tri.iloc[i].to_numpy(dtype=float)
@@ -244,13 +246,10 @@ def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_t
         for j in range(last + 1, ncols):
             prev = row[j - 1]
 
-            # 🔒 Sécurité totale
             if not np.isnan(prev):
-                factor_index = j - 1
-
-                if factor_index < len(factors_without_tail):
-                    row[j] = prev * factors_without_tail[factor_index]
-                else:
+                try:
+                    row[j] = prev * factors[j - 1]
+                except:
                     row[j] = prev  # fallback sécurisé
 
         tri.iloc[i] = row
