@@ -224,16 +224,16 @@ def cdf_from_factors(factors_without_tail: List[float], tail_factor: float = 1.0
 
 
 
-def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail):
+def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail) -> Tuple[pd.DataFrame, pd.Series, pd.Series, np.ndarray]:
     tri = cum_triangle.copy().astype(float)
     nrows, ncols = tri.shape
 
-    # sécurisation facteurs
+    # 🔒 FIX CRITIQUE : assurer ncols-1 facteurs
     factors = list(factors_without_tail)
-    if len(factors) < ncols - 1:
-        factors += [1.0] * (ncols - 1 - len(factors))
-    else:
+    if len(factors) != ncols - 1:
         factors = factors[:ncols - 1]
+        if len(factors) < ncols - 1:
+            factors += [1.0] * (ncols - 1 - len(factors))
 
     for i in range(nrows):
         row = tri.iloc[i].to_numpy(dtype=float)
@@ -250,9 +250,7 @@ def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_t
             if np.isnan(prev):
                 continue
 
-            # protection absolue
-            idx = min(j - 1, len(factors) - 1)
-            row[j] = prev * factors[idx]
+            row[j] = prev * factors[j - 1]
 
         tri.iloc[i] = row
 
@@ -557,6 +555,12 @@ with st.expander("💶 Primes acquises pour Loss Ratio / BF / Benktander", expan
 link_ratios = compute_link_ratios(cum_triangle)
 selected = selected_factors_from_ratios(cum_triangle, mode=factor_mode, tail_factor=tail_factor)
 selected_no_tail = selected.iloc[:-1].to_list()
+
+# 🔒 FIX GLOBAL : sécuriser taille facteurs
+if len(selected_no_tail) != cum_triangle.shape[1] - 1:
+    selected_no_tail = selected_no_tail[:cum_triangle.shape[1] - 1]
+    if len(selected_no_tail) < cum_triangle.shape[1] - 1:
+        selected_no_tail += [1.0] * (cum_triangle.shape[1] - 1 - len(selected_no_tail))
 completed_cl, latest, ultimate_cl, reserve_cl = complete_triangle_chain_ladder(cum_triangle, selected_no_tail)
 row_cdf = dev_cdf_by_row(cum_triangle, selected_no_tail, tail_factor=tail_factor)
 global_cdf = cdf_from_factors(selected_no_tail, tail_factor=tail_factor)
