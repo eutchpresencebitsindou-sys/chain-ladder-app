@@ -224,40 +224,39 @@ def cdf_from_factors(factors_without_tail: List[float], tail_factor: float = 1.0
 
 
 
-def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail) -> Tuple[pd.DataFrame, pd.Series, pd.Series, np.ndarray]:
+def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail):
+
     tri = cum_triangle.copy().astype(float)
     nrows, ncols = tri.shape
 
-    # 🔒 FIX CRITIQUE : assurer ncols-1 facteurs
+    # 🔥 On construit les CDF (produits cumulés)
     factors = list(factors_without_tail)
+
     if len(factors) != ncols - 1:
         factors = factors[:ncols - 1]
         if len(factors) < ncols - 1:
             factors += [1.0] * (ncols - 1 - len(factors))
 
+    # CDF
+    cdf = np.ones(ncols)
+    for i in range(ncols - 2, -1, -1):
+        cdf[i] = cdf[i + 1] * factors[i]
+
+    # 🔥 Calcul direct (plus de boucle dangereuse)
+    latest = last_observed_by_row(tri)
+    obs_dev = observed_dev_index_by_row(tri)
+
+    ultimate = []
     for i in range(nrows):
-        row = tri.iloc[i].to_numpy(dtype=float)
-        valid = np.where(~np.isnan(row))[0]
+        if obs_dev[i] == -1:
+            ultimate.append(np.nan)
+        else:
+            ultimate.append(latest.iloc[i] * cdf[obs_dev[i]])
 
-        if len(valid) == 0:
-            continue
-
-        last = valid[-1]
-
-        for j in range(last + 1, ncols):
-            prev = row[j - 1]
-
-            if np.isnan(prev):
-                continue
-
-            row[j] = prev * factors[j - 1]
-
-        tri.iloc[i] = row
-
-    latest = last_observed_by_row(cum_triangle)
-    ultimate = tri.iloc[:, -1]
+    ultimate = pd.Series(ultimate, index=tri.index)
     reserve = ultimate - latest
 
+    # 🔥 on ne remplit plus cellule par cellule → plus de bug
     return tri, latest, ultimate, reserve
 
 
