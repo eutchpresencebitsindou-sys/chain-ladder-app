@@ -212,54 +212,75 @@ def selected_factors_from_ratios(cum_triangle: pd.DataFrame, mode: str = "pondé
     return pd.Series(factors, index=names)
 
 
+
+def normalize_factors_for_triangle(factors_without_tail: List[float], ncols: int) -> List[float]:
+    factors = []
+    target = max(ncols - 1, 0)
+    raw = list(factors_without_tail) if factors_without_tail is not None else []
+    for x in raw[:target]:
+        try:
+            val = float(np.asarray(x).reshape(-1)[0])
+            if not np.isfinite(val) or val <= 0:
+                val = 1.0
+        except Exception:
+            val = 1.0
+        factors.append(val)
+    if len(factors) < target:
+        factors.extend([1.0] * (target - len(factors)))
+    return factors
+
 def cdf_from_factors(factors_without_tail: List[float], tail_factor: float = 1.0) -> np.ndarray:
-    all_f = list(factors_without_tail) + [tail_factor]
+    factors = []
+    raw = list(factors_without_tail) if factors_without_tail is not None else []
+    for x in raw:
+        try:
+            val = float(np.asarray(x).reshape(-1)[0])
+            if not np.isfinite(val) or val <= 0:
+                val = 1.0
+        except Exception:
+            val = 1.0
+        factors.append(val)
+    try:
+        tail = float(np.asarray(tail_factor).reshape(-1)[0])
+        if not np.isfinite(tail) or tail <= 0:
+            tail = 1.0
+    except Exception:
+        tail = 1.0
+    all_f = factors + [tail]
     m = len(all_f)
-    cdf = np.ones(m)
+    cdf = np.ones(m, dtype=float)
     prod = 1.0
     for k in range(m - 1, -1, -1):
-        prod *= all_f[k]
+        prod *= float(all_f[k])
         cdf[k] = prod
     return cdf
 
-
-
-def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail):
-
+def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_tail: List[float]) -> Tuple[pd.DataFrame, pd.Series, pd.Series, np.ndarray]:
     tri = cum_triangle.copy().astype(float)
     nrows, ncols = tri.shape
+    factors = normalize_factors_for_triangle(factors_without_tail, ncols)
 
-    # 🔥 On construit les CDF (produits cumulés)
-    factors = list(factors_without_tail)
-
-    if len(factors) != ncols - 1:
-        factors = factors[:ncols - 1]
-        if len(factors) < ncols - 1:
-            factors += [1.0] * (ncols - 1 - len(factors))
-
-    # CDF
-    cdf = np.ones(ncols)
-    for i in range(ncols - 2, -1, -1):
-        cdf[i] = cdf[i + 1] * factors[i]
-
-    # 🔥 Calcul direct (plus de boucle dangereuse)
-    latest = last_observed_by_row(tri)
-    obs_dev = observed_dev_index_by_row(tri)
-
-    ultimate = []
     for i in range(nrows):
-        if obs_dev[i] == -1:
-            ultimate.append(np.nan)
-        else:
-            ultimate.append(latest.iloc[i] * cdf[obs_dev[i]])
+        valid_cols = np.where(~tri.iloc[i].isna().to_numpy())[0]
+        if len(valid_cols) == 0:
+            continue
+        last = int(valid_cols[-1])
+        last_obs_val = float(tri.iloc[i, last])
+        for j in range(last + 1, ncols):
+            prev = tri.iat[i, j - 1]
+            try:
+                prev = float(prev)
+            except Exception:
+                prev = np.nan
+            if np.isnan(prev):
+                prev = last_obs_val
+            factor = float(factors[j - 1]) if (j - 1) < len(factors) else 1.0
+            tri.iat[i, j] = float(prev * factor)
 
-    ultimate = pd.Series(ultimate, index=tri.index)
-    reserve = ultimate - latest
-
-    # 🔥 on ne remplit plus cellule par cellule → plus de bug
+    latest = last_observed_by_row(cum_triangle)
+    ultimate = tri.iloc[:, -1].astype(float)
+    reserve = (ultimate - latest).astype(float)
     return tri, latest, ultimate, reserve
-
-
 
 def dev_cdf_by_row(cum_triangle: pd.DataFrame, factors_without_tail: List[float], tail_factor: float = 1.0) -> pd.Series:
     cdf = cdf_from_factors(factors_without_tail, tail_factor)
@@ -553,13 +574,7 @@ with st.expander("💶 Primes acquises pour Loss Ratio / BF / Benktander", expan
 # -------------------------
 link_ratios = compute_link_ratios(cum_triangle)
 selected = selected_factors_from_ratios(cum_triangle, mode=factor_mode, tail_factor=tail_factor)
-selected_no_tail = selected.iloc[:-1].to_list()
-
-# 🔒 FIX GLOBAL : sécuriser taille facteurs
-if len(selected_no_tail) != cum_triangle.shape[1] - 1:
-    selected_no_tail = selected_no_tail[:cum_triangle.shape[1] - 1]
-    if len(selected_no_tail) < cum_triangle.shape[1] - 1:
-        selected_no_tail += [1.0] * (cum_triangle.shape[1] - 1 - len(selected_no_tail))
+selected_no_tail = normalize_factors_for_triangle(selected.iloc[:-1].to_list(), cum_triangle.shape[1])
 completed_cl, latest, ultimate_cl, reserve_cl = complete_triangle_chain_ladder(cum_triangle, selected_no_tail)
 row_cdf = dev_cdf_by_row(cum_triangle, selected_no_tail, tail_factor=tail_factor)
 global_cdf = cdf_from_factors(selected_no_tail, tail_factor=tail_factor)
