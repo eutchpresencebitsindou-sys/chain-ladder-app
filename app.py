@@ -502,9 +502,9 @@ with st.sidebar:
 st.markdown(
     f"""
     <div class="hero">
-        <h1 style="margin:0;">📘 Provisionnement Non-Vie Premium</h1>
+        <h1 style="margin:0;">📘 Provisionnement Non-Vie</h1>
         <p style="font-size:1.05rem;margin:0.4rem 0 0.15rem 0;">
-            Conçu pour <b>{APP_AUTHOR}</b> — triangle de liquidation, projection, diagnostics et comparaison multi-méthodes.
+            Conçu par <b>{APP_AUTHOR}</b> 
         </p>
         <p style="margin:0;opacity:0.92;">
             Méthodes intégrées : Chain-Ladder, Loss Ratio, Bornhuetter-Ferguson, Benktander, Mack et Bootstrap.
@@ -518,7 +518,7 @@ st.info(
     "Cette application suit la logique du guide de provisionnement non-vie de l’Institut des actuaires : méthodes déterministes, méthodes stochastiques, segmentation, validation des hypothèses et qualité des données."
 )
 
-with st.expander("🧭 Étapes de A à Z dans l'application", expanded=False):
+with st.expander("🧭 Étapes à suivre pour utiliser l'application", expanded=False):
     st.markdown(
         """
         1. Importer ou coller le triangle de liquidation.  
