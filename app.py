@@ -229,37 +229,54 @@ def complete_triangle_chain_ladder(cum_triangle: pd.DataFrame, factors_without_t
     tri = cum_triangle.copy().astype(float)
     nrows, ncols = tri.shape
 
-    # 🔥 On construit les CDF (produits cumulés)
+    # 🔒 Sécuriser les facteurs
     factors = list(factors_without_tail)
-
     if len(factors) != ncols - 1:
         factors = factors[:ncols - 1]
         if len(factors) < ncols - 1:
             factors += [1.0] * (ncols - 1 - len(factors))
 
-    # CDF
+    # 🔥 Construire les CDF
     cdf = np.ones(ncols)
-    for i in range(ncols - 2, -1, -1):
-        cdf[i] = cdf[i + 1] * factors[i]
+    for j in range(ncols - 2, -1, -1):
+        cdf[j] = cdf[j + 1] * factors[j]
 
-    # 🔥 Calcul direct (plus de boucle dangereuse)
     latest = last_observed_by_row(tri)
     obs_dev = observed_dev_index_by_row(tri)
 
-    ultimate = []
+    # 🔥 Calcul des ultimates (robuste)
+    ultimate = pd.Series(index=tri.index, dtype=float)
     for i in range(nrows):
         if obs_dev[i] == -1:
-            ultimate.append(np.nan)
+            ultimate.iloc[i] = np.nan
         else:
-            ultimate.append(latest.iloc[i] * cdf[obs_dev[i]])
+            ultimate.iloc[i] = latest.iloc[i] * cdf[obs_dev[i]]
 
-    ultimate = pd.Series(ultimate, index=tri.index)
     reserve = ultimate - latest
 
-    # 🔥 on ne remplit plus cellule par cellule → plus de bug
+    # =====================================================
+    # 🔥 COMPLETION DU TRIANGLE (propre et stable)
+    # =====================================================
+    for i in range(nrows):
+        row = tri.iloc[i].to_numpy(dtype=float)
+        last = obs_dev[i]
+
+        if last == -1:
+            continue
+
+        for j in range(last + 1, ncols):
+
+            prev = row[j - 1]
+
+            # 🔒 fallback si NaN
+            if np.isnan(prev):
+                prev = latest.iloc[i]
+
+            row[j] = prev * factors[j - 1]
+
+        tri.iloc[i] = row
+
     return tri, latest, ultimate, reserve
-
-
 
 def dev_cdf_by_row(cum_triangle: pd.DataFrame, factors_without_tail: List[float], tail_factor: float = 1.0) -> pd.Series:
     cdf = cdf_from_factors(factors_without_tail, tail_factor)
